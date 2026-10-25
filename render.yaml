@@ -5,15 +5,9 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --workers 2 --threads 4 --timeout 120
     plan: free
-    disk:
-      name: queueless-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: SECRET_KEY
         generateValue: true
-      - key: DATABASE_URL
-        value: sqlite:////data/queueless.db
       - key: ADMIN_USERNAME
         value: admin
       - key: ADMIN_PASSWORD
