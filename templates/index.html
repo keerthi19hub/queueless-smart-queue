@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}QueueLess — Smart Queue Management System{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero">
+  <div class="hero-pill">
+    <span>✨ Next-Gen Campus Queue Management</span>
+  </div>
+  <h1 class="hero-title">
+    Say Goodbye to Physical Lines.<br>
+    <span>Queue Smarter with Digital Tokens.</span>
+  </h1>
+  <p class="hero-desc">
+    QueueLess replaces crowded physical waiting lines with instant digital tokens, live position tracking, estimated wait countdowns, and turn-approaching alerts right on your phone.
+  </p>
+
+  <div class="hero-actions">
+    <a href="{{ url_for('get_token_page') }}" class="btn btn-primary btn-lg">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Join a Queue Now
+    </a>
+    <a href="{{ url_for('services_page') }}" class="btn btn-secondary btn-lg">
+      View All Counters
+    </a>
+  </div>
+
+  <!-- Quick Track Search Box -->
+  <form class="track-box" onsubmit="handleQuickTrack(event)">
+    <input type="text" id="quick-track-input" placeholder="Enter Token # (e.g. ADM-101) or Ref Code (e.g. QL-A9K4)" required>
+    <button type="submit" class="btn btn-primary">Track</button>
+  </form>
+</section>
+
+<!-- How It Works Section -->
+<section style="margin: 3.5rem 0;">
+  <div style="text-align: center; margin-bottom: 2rem;">
+    <h2 style="font-size: 1.85rem; font-weight: 800; color: var(--slate-800);">How QueueLess Works</h2>
+    <p style="color: var(--slate-600); font-size: 1rem; margin-top: 0.35rem;">Three simple steps to save your time and eliminate crowded waiting areas.</p>
+  </div>
+
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <h3 class="step-title">Select Department</h3>
+      <p class="step-desc">Pick your campus service counter—Administration, Fee Accounts, Student Support, or General Help desk.</p>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <h3 class="step-title">Instant Digital Token</h3>
+      <p class="step-desc">Get your sequential token number with a secure private tracking code. No duplicate numbers, no papers needed.</p>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <h3 class="step-title">Live Updates & Alerts</h3>
+      <p class="step-desc">Track people ahead and estimated wait times in real-time. Receive instant audio & screen chimes when it's your turn.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Active Campus Counters Grid -->
+<section style="margin-top: 3.5rem;">
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <h2 style="font-size: 1.75rem; font-weight: 800; color: var(--slate-800);">Active Service Counters</h2>
+      <p style="color: var(--slate-600); font-size: 0.95rem;">Live queue status across college administrative offices.</p>
+    </div>
+    <span class="live-badge"><span class="live-dot"></span> Live Queue Updates</span>
+  </div>
+
+  <div class="services-grid">
+    {% for service in services %}
+      <div class="service-card">
+        <div>
+          <div class="service-top">
+            <div class="service-icon">
+              {% if service.prefix == 'ADM' %}🏛️
+              {% elif service.prefix == 'FEE' %}💳
+              {% elif service.prefix == 'SUP' %}🎓
+              {% else %}📋{% endif %}
+            </div>
+            <span class="counter-tag">{{ service.counter_number }}</span>
+          </div>
+
+          <h3 class="service-title">{{ service.name }}</h3>
+          <p class="service-desc">{{ service.description }}</p>
+        </div>
+
+        <div>
+          <div class="service-meta">
+            <div class="service-meta-item">
+              <label style="font-size: 0.72rem; color: var(--slate-500); text-transform: uppercase; font-weight: 600;">Currently Serving</label>
+              <strong>{{ service.current_serving or 'None' }}</strong>
+            </div>
+            <div class="service-meta-item" style="text-align: right;">
+              <label style="font-size: 0.72rem; color: var(--slate-500); text-transform: uppercase; font-weight: 600;">Waiting in Line</label>
+              <strong style="color: var(--primary);">{{ service.waiting_count }} visitors</strong>
+            </div>
+          </div>
+
+          <a href="{{ url_for('get_token_page', service_code=service.code) }}" class="btn btn-primary" style="width: 100%;">
+            Get {{ service.prefix }} Token
+          </a>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function handleQuickTrack(e) {
+  e.preventDefault();
+  const input = document.getElementById('quick-track-input').value.trim();
+  if (input) {
+    window.location.href = `/status/${encodeURIComponent(input.toUpperCase())}`;
+  }
+}
+</script>
+{% endblock %}

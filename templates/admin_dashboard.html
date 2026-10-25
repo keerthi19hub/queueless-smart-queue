@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard — QueueLess{% endblock %}
+
+{% block content %}
+<div>
+  <!-- Header Bar -->
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <h1 style="font-size: 2rem; font-weight: 800; color: var(--slate-800);">Queue Management Dashboard</h1>
+      <p style="color: var(--slate-600); font-size: 0.95rem;">
+        Logged in as <strong>{{ admin_user }}</strong> &bull; Real-time multi-counter control
+      </p>
+    </div>
+
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+      <a href="{{ url_for('display_page') }}" target="_blank" class="btn btn-secondary btn-sm">
+        📺 Open Kiosk TV
+      </a>
+      <a href="{{ url_for('admin_settings') }}" class="btn btn-secondary btn-sm">
+        ⚙️ Settings & Password
+      </a>
+      <button onclick="adminDashboard.resetQueue()" class="btn btn-danger btn-sm">
+        ⚠️ Reset Queues
+      </button>
+    </div>
+  </div>
+
+  <!-- Key Metrics Summary Row -->
+  <div class="admin-stats-grid">
+    <div class="stat-box">
+      <div class="stat-icon blue">📋</div>
+      <div class="stat-info">
+        <h4 id="stat-total">{{ data.stats.total_tokens }}</h4>
+        <p>Total Tokens Issued</p>
+      </div>
+    </div>
+
+    <div class="stat-box">
+      <div class="stat-icon amber">⏳</div>
+      <div class="stat-info">
+        <h4 id="stat-waiting" style="color: var(--warning);">{{ data.stats.waiting_tokens }}</h4>
+        <p>Currently Waiting</p>
+      </div>
+    </div>
+
+    <div class="stat-box">
+      <div class="stat-icon green">🎯</div>
+      <div class="stat-info">
+        <h4 id="stat-serving" style="color: var(--accent);">{{ data.stats.serving_tokens }}</h4>
+        <p>Currently Serving</p>
+      </div>
+    </div>
+
+    <div class="stat-box">
+      <div class="stat-icon purple">✓</div>
+      <div class="stat-info">
+        <h4 id="stat-completed">{{ data.stats.completed_tokens }}</h4>
+        <p>Completed Today</p>
+      </div>
+    </div>
+
+    <div class="stat-box">
+      <div class="stat-icon blue">⏱️</div>
+      <div class="stat-info">
+        <h4 id="stat-avg-time">{{ data.stats.avg_service_mins }}m</h4>
+        <p>Avg Service Time</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Counter Controls Section -->
+  <div style="margin-bottom: 2.5rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+      <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--slate-800);">Counter Operations</h2>
+      <span class="live-badge"><span class="live-dot"></span> Live Polling (4s)</span>
+    </div>
+
+    <div class="counter-control-grid">
+      {% for service in data.services %}
+        <div class="counter-card" id="counter-card-{{ service.id }}">
+          <div class="counter-card-header">
+            <div>
+              <strong style="color: var(--slate-800);">{{ service.counter_number }}</strong>
+              <div style="font-size: 0.8rem; color: var(--slate-500);">{{ service.name }}</div>
+            </div>
+            <span class="counter-waiting-count badge badge-waiting">{{ service.waiting_count }} waiting</span>
+          </div>
+
+          <div class="counter-card-body">
+            <div class="serving-display {% if service.current_serving %}active{% endif %}">
+              <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--slate-500); margin-bottom: 4px;">
+                Now Serving
+              </div>
+              <div class="serving-token-num">
+                {{ service.current_serving.token_number if service.current_serving else '—' }}
+              </div>
+              <div class="serving-visitor" style="font-size: 0.85rem; color: var(--slate-600); margin-top: 4px;">
+                {{ service.current_serving.visitor_name if service.current_serving else 'No visitor currently serving' }}
+              </div>
+            </div>
+
+            <div style="font-size: 0.82rem; color: var(--slate-500); margin-bottom: 1rem; display: flex; justify-content: space-between;">
+              <span>Next in line:</span>
+              <strong class="counter-next-inline" style="color: var(--slate-700);">
+                {{ service.next_in_line.token_number if service.next_in_line else 'None' }}
+              </strong>
+            </div>
+
+            <div class="counter-actions">
+              <button onclick="adminDashboard.callNext({{ service.id }})" class="btn btn-primary btn-call-next btn-full">
+                🔊 Call Next Token
+              </button>
+              <button onclick="adminDashboard.completeCurrent(this.getAttribute('data-token-id'))" 
+                      class="btn btn-success btn-complete" 
+                      {% if not service.current_serving %}disabled{% else %}data-token-id="{{ service.current_serving.id }}"{% endif %}>
+                ✓ Complete
+              </button>
+              <button onclick="adminDashboard.skipCurrent(this.getAttribute('data-token-id'))" 
+                      class="btn btn-warning btn-skip" 
+                      {% if not service.current_serving %}disabled{% else %}data-token-id="{{ service.current_serving.id }}"{% endif %}>
+                ⏭ Skip
+              </button>
+              <button onclick="adminDashboard.recallCurrent(this.getAttribute('data-token-id'))" 
+                      class="btn btn-secondary btn-recall btn-full" 
+                      {% if not service.current_serving %}disabled{% else %}data-token-id="{{ service.current_serving.id }}"{% endif %}>
+                🔔 Re-announce / Recall
+              </button>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Live Token List & Queue Table -->
+  <div class="card">
+    <div class="card-header" style="flex-wrap: wrap; gap: 1rem;">
+      <div>
+        <h2 class="card-title">Token Registry & History</h2>
+        <p style="color: var(--slate-500); font-size: 0.85rem; margin-top: 2px;">Real-time queue records for today</p>
+      </div>
+
+      <!-- Search & Filters -->
+      <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+        <input type="text" id="admin-token-search" class="form-control" placeholder="Search tokens or names..." style="max-width: 220px; padding: 0.4rem 0.75rem; font-size: 0.85rem;">
+        
+        <div style="display: flex; gap: 0.25rem; background: var(--slate-100); padding: 0.25rem; border-radius: var(--radius-md);">
+          <button class="btn btn-secondary btn-sm filter-tab active" data-filter="ALL" style="padding: 0.25rem 0.6rem; border: none;">All</button>
+          <button class="btn btn-secondary btn-sm filter-tab" data-filter="WAITING" style="padding: 0.25rem 0.6rem; border: none;">Waiting</button>
+          <button class="btn btn-secondary btn-sm filter-tab" data-filter="SERVING" style="padding: 0.25rem 0.6rem; border: none;">Serving</button>
+          <button class="btn btn-secondary btn-sm filter-tab" data-filter="COMPLETED" style="padding: 0.25rem 0.6rem; border: none;">Completed</button>
+          <button class="btn btn-secondary btn-sm filter-tab" data-filter="SKIPPED" style="padding: 0.25rem 0.6rem; border: none;">Skipped</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Token #</th>
+            <th>Ref Code</th>
+            <th>Department</th>
+            <th>Visitor / ID</th>
+            <th>Status</th>
+            <th>Issued Time</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="admin-tokens-tbody">
+          {% for t in data.recent_tokens %}
+            <tr>
+              <td><strong>{{ t.token_number }}</strong></td>
+              <td><span style="font-family: monospace; font-size: 0.85rem; color: var(--primary);">{{ t.reference_code }}</span></td>
+              <td>{{ t.service_name or '—' }}</td>
+              <td>{{ t.visitor_name or 'Visitor' }}{% if t.student_id %} <small style="color: var(--slate-500);">({{ t.student_id }})</small>{% endif %}</td>
+              <td><span class="badge badge-{{ t.status.lower() }}">{{ t.status }}</span></td>
+              <td style="color: var(--slate-500); font-size: 0.85rem;">{{ t.created_at[11:16] if t.created_at else '' }}</td>
+              <td>
+                <a href="{{ url_for('status_page', reference_code=t.reference_code) }}" target="_blank" class="btn btn-secondary btn-sm">View</a>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7" style="text-align: center; color: var(--slate-400); padding: 1.5rem;">No tokens registered yet today.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+<script>
+let adminDashboard = null;
+document.addEventListener('DOMContentLoaded', () => {
+  adminDashboard = new AdminDashboard();
+  adminDashboard.start();
+});
+</script>
+{% endblock %}

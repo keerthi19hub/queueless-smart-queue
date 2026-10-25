@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Get Digital Token — QueueLess{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto;">
+  <div style="text-align: center; margin-bottom: 2rem;">
+    <h1 style="font-size: 2rem; font-weight: 800; color: var(--slate-800);">Get Your Digital Token</h1>
+    <p style="color: var(--slate-600); font-size: 0.95rem; margin-top: 0.35rem;">
+      Select your service and enter your details to reserve your position in the queue.
+    </p>
+  </div>
+
+  <div class="card" style="box-shadow: var(--shadow-lg);">
+    <form id="token-form" onsubmit="handleTokenSubmit(event)">
+      <!-- Hidden Idempotency Key to prevent duplicate token creation -->
+      <input type="hidden" id="idempotency_key" name="idempotency_key" value="{{ idempotency_key }}">
+
+      <!-- Department / Service Selection -->
+      <div class="form-group">
+        <label for="service_id" class="form-label">Select Department / Counter <span style="color: var(--danger);">*</span></label>
+        <select id="service_id" name="service_id" class="form-select" required onchange="updateServicePreview()">
+          <option value="" disabled {% if not selected_service %}selected{% endif %}>-- Choose a service counter --</option>
+          {% for s in services %}
+            <option value="{{ s.id }}" 
+                    data-waiting="{{ s.waiting_count }}" 
+                    data-avg="{{ s.avg_service_time_mins }}" 
+                    data-counter="{{ s.counter_number }}"
+                    data-prefix="{{ s.prefix }}"
+                    {% if selected_service and selected_service.id == s.id %}selected{% endif %}>
+              {{ s.name }} ({{ s.counter_number }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Service Live Info Preview Box -->
+      <div id="service-preview-box" style="background: var(--primary-light); border: 1px solid var(--primary-border); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem; display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
+          <div>
+            <span style="color: var(--slate-600);">Counter:</span>
+            <strong id="prev-counter" style="color: var(--slate-800);">Counter 1</strong>
+          </div>
+          <div>
+            <span style="color: var(--slate-600);">Waiting Now:</span>
+            <strong id="prev-waiting" style="color: var(--primary);">0 visitors</strong>
+          </div>
+          <div>
+            <span style="color: var(--slate-600);">Est. Wait:</span>
+            <strong id="prev-est" style="color: var(--accent);">~0 mins</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visitor Name -->
+      <div class="form-group">
+        <label for="visitor_name" class="form-label">Full Name <small style="color: var(--slate-500); font-weight: normal;">(Optional, for display)</small></label>
+        <input type="text" id="visitor_name" name="visitor_name" class="form-control" placeholder="e.g. Alex Johnson" maxlength="100">
+      </div>
+
+      <!-- Student ID / Roll Number -->
+      <div class="form-group">
+        <label for="student_id" class="form-label">Student ID / Roll No. <small style="color: var(--slate-500); font-weight: normal;">(Optional)</small></label>
+        <input type="text" id="student_id" name="student_id" class="form-control" placeholder="e.g. CS2026-042" maxlength="50">
+      </div>
+
+      <!-- Mobile / Email for display -->
+      <div class="form-group">
+        <label for="phone_or_email" class="form-label">Mobile Number or Email <small style="color: var(--slate-500); font-weight: normal;">(Optional)</small></label>
+        <input type="text" id="phone_or_email" name="phone_or_email" class="form-control" placeholder="e.g. +91 9876543210 or name@college.edu">
+        <div class="form-help">Personal details are kept strictly private and never exposed to other visitors.</div>
+      </div>
+
+      <!-- Purpose of Visit -->
+      <div class="form-group">
+        <label for="notes" class="form-label">Purpose / Notes <small style="color: var(--slate-500); font-weight: normal;">(Optional)</small></label>
+        <textarea id="notes" name="notes" rows="2" class="form-control" placeholder="Brief reason (e.g. Degree certificate collection, semester fee receipt)" maxlength="250"></textarea>
+      </div>
+
+      <!-- Submit Button -->
+      <button type="submit" id="btn-submit-token" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 0.5rem;">
+        <span id="btn-text">Generate My Digital Token</span>
+        <span id="btn-spinner" style="display: none;">Generating...</span>
+      </button>
+
+      <div style="text-align: center; margin-top: 1rem; font-size: 0.85rem; color: var(--slate-500);">
+        🛡️ Protected against duplicate submissions. Your position will be locked immediately.
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateServicePreview() {
+  const select = document.getElementById('service_id');
+  const opt = select.options[select.selectedIndex];
+  const box = document.getElementById('service-preview-box');
+
+  if (!opt || !opt.value) {
+    box.style.display = 'none';
+    return;
+  }
+
+  const waiting = parseInt(opt.getAttribute('data-waiting') || '0', 10);
+  const avg = parseInt(opt.getAttribute('data-avg') || '5', 10);
+  const counter = opt.getAttribute('data-counter');
+
+  document.getElementById('prev-counter').innerText = counter;
+  document.getElementById('prev-waiting').innerText = `${waiting} ${waiting === 1 ? 'person' : 'people'}`;
+  document.getElementById('prev-est').innerText = waiting === 0 ? 'Next in line!' : `~${waiting * avg} mins`;
+  box.style.display = 'block';
+}
+
+async function handleTokenSubmit(e) {
+  e.preventDefault();
+  
+  const submitBtn = document.getElementById('btn-submit-token');
+  const btnText = document.getElementById('btn-text');
+  const btnSpinner = document.getElementById('btn-spinner');
+
+  // Disable button immediately to prevent double submissions
+  submitBtn.disabled = true;
+  btnText.style.display = 'none';
+  btnSpinner.style.display = 'inline-block';
+
+  const payload = {
+    service_id: document.getElementById('service_id').value,
+    visitor_name: document.getElementById('visitor_name').value.trim(),
+    student_id: document.getElementById('student_id').value.trim(),
+    phone_or_email: document.getElementById('phone_or_email').value.trim(),
+    notes: document.getElementById('notes').value.trim(),
+    idempotency_key: document.getElementById('idempotency_key').value
+  };
+
+  try {
+    const res = await fetch('/api/token/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (data.success && data.token) {
+      showToast("Token Generated!", "Your digital token is ready. Redirecting to pass...", "success");
+      setTimeout(() => {
+        window.location.href = `/token/view/${encodeURIComponent(data.token.reference_code)}`;
+      }, 500);
+    } else {
+      showToast("Error", data.error || "Failed to generate token.", "danger");
+      submitBtn.disabled = false;
+      btnText.style.display = 'inline-block';
+      btnSpinner.style.display = 'none';
+    }
+  } catch (err) {
+    showToast("Error", "Network connection failure. Please try again.", "danger");
+    submitBtn.disabled = false;
+    btnText.style.display = 'inline-block';
+    btnSpinner.style.display = 'none';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', updateServicePreview);
+</script>
+{% endblock %}

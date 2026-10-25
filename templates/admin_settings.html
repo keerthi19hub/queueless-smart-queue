@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Settings — QueueLess{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem;">
+    <div>
+      <h1 style="font-size: 2rem; font-weight: 800; color: var(--slate-800);">System Settings</h1>
+      <p style="color: var(--slate-600); font-size: 0.95rem;">Manage security credentials and service counter configurations.</p>
+    </div>
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">&larr; Back to Dashboard</a>
+  </div>
+
+  <!-- Security / Change Password Card -->
+  <div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header">
+      <h2 class="card-title">Change Administrator Password</h2>
+    </div>
+
+    <form onsubmit="handlePasswordChange(event)" style="max-width: 480px;">
+      <div class="form-group">
+        <label for="current_password" class="form-label">Current Password</label>
+        <input type="password" id="current_password" class="form-control" required placeholder="Enter current password">
+      </div>
+
+      <div class="form-group">
+        <label for="new_password" class="form-label">New Password</label>
+        <input type="password" id="new_password" class="form-control" required minlength="6" placeholder="Minimum 6 characters">
+      </div>
+
+      <div class="form-group">
+        <label for="confirm_password" class="form-label">Confirm New Password</label>
+        <input type="password" id="confirm_password" class="form-control" required minlength="6" placeholder="Re-enter new password">
+      </div>
+
+      <button type="submit" id="btn-change-pwd" class="btn btn-primary">
+        Update Password
+      </button>
+    </form>
+  </div>
+
+  <!-- Service Counters Management Card -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Department Counters Configuration</h2>
+    </div>
+
+    <p style="color: var(--slate-600); font-size: 0.9rem; margin-bottom: 1.5rem;">
+      Adjust estimated average service duration per visitor and counter numbers. Changes affect wait time calculations immediately.
+    </p>
+
+    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+      {% for s in services %}
+        <div style="border: 1px solid var(--slate-200); border-radius: var(--radius-md); padding: 1.25rem; background: var(--slate-50);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+              <strong style="font-size: 1.05rem; color: var(--slate-800);">{{ s.name }}</strong>
+              <span style="font-size: 0.82rem; color: var(--slate-500); margin-left: 0.5rem;">(Prefix: {{ s.prefix }})</span>
+            </div>
+            <span class="badge {% if s.is_active %}badge-serving{% else %}badge-skipped{% endif %}">
+              {% if s.is_active %}Active{% else %}Inactive{% endif %}
+            </span>
+          </div>
+
+          <form onsubmit="handleServiceUpdate(event, {{ s.id }})" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) auto; gap: 0.75rem; align-items: flex-end;">
+            <div>
+              <label class="form-label" style="font-size: 0.8rem;">Counter Label</label>
+              <input type="text" id="counter_label_{{ s.id }}" class="form-control" value="{{ s.counter_number }}" required>
+            </div>
+
+            <div>
+              <label class="form-label" style="font-size: 0.8rem;">Avg Time/Visitor (mins)</label>
+              <input type="number" id="avg_time_{{ s.id }}" class="form-control" value="{{ s.avg_service_time_mins }}" min="1" max="60" required>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 0.5rem; height: 42px;">
+              <input type="checkbox" id="is_active_{{ s.id }}" {% if s.is_active %}checked{% endif %} style="width: 18px; height: 18px;">
+              <label for="is_active_{{ s.id }}" style="font-size: 0.85rem; font-weight: 600; color: var(--slate-700);">Open</label>
+            </div>
+
+            <button type="submit" class="btn btn-secondary btn-sm" style="height: 42px;">
+              Save
+            </button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function handlePasswordChange(e) {
+  e.preventDefault();
+  const current_pwd = document.getElementById('current_password').value;
+  const new_pwd = document.getElementById('new_password').value;
+  const confirm_pwd = document.getElementById('confirm_password').value;
+
+  if (new_pwd !== confirm_pwd) {
+    showToast("Error", "New passwords do not match.", "danger");
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        current_password: current_pwd,
+        new_password: new_pwd,
+        confirm_password: confirm_pwd
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast("Success", "Password updated successfully!", "success");
+      document.getElementById('current_password').value = '';
+      document.getElementById('new_password').value = '';
+      document.getElementById('confirm_password').value = '';
+    } else {
+      showToast("Error", data.error || "Failed to update password.", "danger");
+    }
+  } catch (e) {
+    showToast("Error", "Network error.", "danger");
+  }
+}
+
+async function handleServiceUpdate(e, serviceId) {
+  e.preventDefault();
+  const counter_number = document.getElementById(`counter_label_${serviceId}`).value;
+  const avg_time = document.getElementById(`avg_time_${serviceId}`).value;
+  const is_active = document.getElementById(`is_active_${serviceId}`).checked;
+
+  try {
+    const res = await fetch('/api/admin/service/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: serviceId,
+        counter_number: counter_number,
+        avg_service_time_mins: avg_time,
+        is_active: is_active
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast("Saved", "Service counter updated.", "success");
+    } else {
+      showToast("Error", data.error || "Update failed.", "danger");
+    }
+  } catch (e) {
+    showToast("Error", "Network error.", "danger");
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QueueLess — Public Kiosk Display</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    body {
+      background-color: #0b0f19;
+      color: #f8fafc;
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .display-header {
+      background: #111827;
+      padding: 1.25rem 2rem;
+      border-bottom: 2px solid #1f2937;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .display-brand {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .display-brand-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #4f46e5, #0ea5e9);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: #fff;
+    }
+    .display-clock {
+      font-size: 2rem;
+      font-family: monospace;
+      font-weight: 700;
+      color: #38bdf8;
+      letter-spacing: 0.05em;
+    }
+    .display-counters-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 2rem;
+      padding: 2.5rem 2rem;
+      flex: 1;
+    }
+    .display-counter-card {
+      background: #1e293b;
+      border: 2px solid #334155;
+      border-radius: 20px;
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .display-counter-card.is-active {
+      border-color: #10b981;
+      background: radial-gradient(circle at top right, #064e3b 0%, #1e293b 70%);
+      box-shadow: 0 0 30px rgba(16, 185, 129, 0.25);
+    }
+    .display-counter-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .display-counter-name {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #f8fafc;
+    }
+    .display-service-name {
+      font-size: 1rem;
+      color: #94a3b8;
+    }
+    .display-counter-body {
+      text-align: center;
+      padding: 2rem 1rem;
+      background: #0f172a;
+      border-radius: 16px;
+      margin-bottom: 1.25rem;
+      border: 1px solid #1e293b;
+    }
+    .display-now-serving-label {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: #10b981;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+    .display-serving-token {
+      font-size: 4.5rem;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+    .display-visitor-name {
+      font-size: 1.15rem;
+      color: #cbd5e1;
+      margin-top: 0.75rem;
+      font-weight: 600;
+    }
+    .display-counter-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.95rem;
+      color: #94a3b8;
+    }
+    .display-waiting-count {
+      color: #f59e0b;
+      font-weight: 700;
+    }
+    .display-upcoming {
+      font-family: monospace;
+      color: #e2e8f0;
+    }
+    .display-ticker-bar {
+      background: #111827;
+      border-top: 2px solid #1f2937;
+      padding: 0.9rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 1.1rem;
+      color: #f1f5f9;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Display Header -->
+  <header class="display-header">
+    <div class="display-brand">
+      <div class="display-brand-icon">Q</div>
+      <div>
+        <div style="font-size: 1.4rem; font-weight: 900; letter-spacing: -0.02em;">QueueLess Public Display</div>
+        <div style="font-size: 0.85rem; color: #94a3b8;">Campus Service Waiting Hall Board</div>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 2rem;">
+      <div class="display-clock" id="display-clock">--:--:--</div>
+      <button onclick="toggleFullscreen()" class="btn btn-secondary btn-sm" style="background: #334155; color: #fff; border: none;">
+        ⛶ Fullscreen
+      </button>
+      <button id="btn-display-sound" onclick="toggleDisplayAudio()" class="btn btn-secondary btn-sm" style="background: #334155; color: #fff; border: none;">
+        🔊 Sound On
+      </button>
+    </div>
+  </header>
+
+  <!-- Multi-Counter Grid -->
+  <main class="display-counters-grid" id="display-counters-grid">
+    <div style="text-align: center; color: #94a3b8; grid-column: 1 / -1; padding: 4rem;">
+      Loading active counters...
+    </div>
+  </main>
+
+  <!-- Live Ticker Announcement Bar -->
+  <div class="display-ticker-bar">
+    <div id="display-ticker-text" style="font-weight: 600; color: #38bdf8;">
+      🔔 Welcome to QueueLess. Please monitor your token number on this screen or on your mobile device.
+    </div>
+    <div style="font-size: 0.85rem; color: #64748b;">
+      Auto-refreshing &bull; Real-time
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/display.js') }}"></script>
+  <script>
+    const display = new PublicDisplay();
+    document.addEventListener('DOMContentLoaded', () => {
+      display.start();
+    });
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(e => console.warn(e));
+      } else {
+        document.exitFullscreen().catch(e => console.warn(e));
+      }
+    }
+
+    function toggleDisplayAudio() {
+      const btn = document.getElementById('btn-display-sound');
+      display.audioEnabled = !display.audioEnabled;
+      btn.innerText = display.audioEnabled ? '🔊 Sound On' : '🔇 Sound Muted';
+    }
+  </script>
+</body>
+</html>

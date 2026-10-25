@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if initial_status %}
+    Token {{ initial_status.token_number }} — Live Status — QueueLess
+  {% else %}
+    Track Queue Status — QueueLess
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="status-tracker">
+
+  {% if not reference_code %}
+    <!-- Lookup Token Form if no ref code in URL -->
+    <div class="card" style="max-width: 500px; margin: 2rem auto; text-align: center; box-shadow: var(--shadow-lg);">
+      <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+      <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--slate-800); margin-bottom: 0.5rem;">Track Your Queue Position</h1>
+      <p style="color: var(--slate-600); font-size: 0.95rem; margin-bottom: 1.5rem;">
+        Enter your Token Number (e.g. <code>ADM-101</code>) or your Reference Code (e.g. <code>QL-9X4K2M</code>).
+      </p>
+
+      <form onsubmit="handleLookup(event)">
+        <div class="form-group">
+          <input type="text" id="lookup-input" class="form-control" placeholder="e.g. ADM-101 or QL-8K2M4P" required style="font-size: 1.1rem; text-align: center; font-weight: 700; text-transform: uppercase;">
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">
+          View Live Status
+        </button>
+      </form>
+    </div>
+
+  {% else %}
+    <!-- Live Tracker Interface -->
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+      <a href="{{ url_for('services_page') }}" style="color: var(--slate-500); text-decoration: none; font-size: 0.88rem; font-weight: 500;">&larr; Back to Services</a>
+      <div style="display: flex; gap: 0.5rem;">
+        <button id="btn-toggle-sound" onclick="toggleSound()" class="btn btn-secondary btn-sm" title="Toggle audio chime">
+          🔊 Sound On
+        </button>
+        <button id="btn-request-notif" onclick="NotificationManager.requestPermission()" class="btn btn-secondary btn-sm" title="Enable browser alerts">
+          🔔 Enable Desktop Alerts
+        </button>
+      </div>
+    </div>
+
+    <!-- Urgent Calling Alert Banner (Shown when turn is approaching or serving) -->
+    <div id="serving-alert-banner" class="urgent-banner" style="display: none;"></div>
+
+    <!-- Main Live Ticket Card -->
+    <div class="card" style="box-shadow: var(--shadow-lg); padding: 2rem 1.5rem;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid var(--slate-100); padding-bottom: 1.25rem;">
+        <div>
+          <span style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--slate-500);">
+            {{ initial_status.service_name if initial_status else 'Service Counter' }}
+          </span>
+          <h1 style="font-size: 2.75rem; font-weight: 900; color: var(--slate-800); line-height: 1.1; margin-top: 0.2rem;" id="val-token-num">
+            {{ initial_status.token_number if initial_status else reference_code }}
+          </h1>
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem;">
+            <span style="font-size: 0.85rem; color: var(--slate-500);">Ref:</span>
+            <code style="font-size: 0.95rem; font-weight: 700; color: var(--primary);" id="val-ref-code">{{ reference_code }}</code>
+            <button onclick="copyToClipboard('{{ reference_code }}', 'Reference code copied!')" style="background: none; border: none; cursor: pointer; color: var(--slate-400); font-size: 0.9rem;" title="Copy code">📋</button>
+          </div>
+        </div>
+
+        <div style="text-align: right;">
+          <div style="margin-bottom: 0.5rem;">
+            <span class="live-badge"><span class="live-dot"></span> Live Polling</span>
+          </div>
+          <span id="val-status-badge" class="badge badge-{{ initial_status.status.lower() if initial_status else 'waiting' }}" style="font-size: 0.9rem; padding: 0.35rem 0.85rem;">
+            {{ initial_status.status if initial_status else 'WAITING' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Queue Stepper Indicator -->
+      <div class="stepper">
+        <div class="step-item completed" id="step-created">
+          <div class="step-dot">1</div>
+          <div class="step-label">Token Issued</div>
+        </div>
+        <div class="step-item" id="step-waiting">
+          <div class="step-dot">2</div>
+          <div class="step-label">Waiting in Queue</div>
+        </div>
+        <div class="step-item" id="step-approaching">
+          <div class="step-dot">3</div>
+          <div class="step-label">Turn Approaching</div>
+        </div>
+        <div class="step-item" id="step-serving">
+          <div class="step-dot">4</div>
+          <div class="step-label">Now Serving</div>
+        </div>
+        <div class="step-item" id="step-completed">
+          <div class="step-dot">5</div>
+          <div class="step-label">Completed</div>
+        </div>
+      </div>
+
+      <!-- Real-Time Metrics Row -->
+      <div class="metrics-row">
+        <div class="metric-card highlight">
+          <div class="metric-val" id="val-people-ahead">{{ initial_status.people_ahead if initial_status else '0' }}</div>
+          <div class="metric-lbl">People Ahead of You</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-val" id="val-current-serving">{{ initial_status.current_serving if (initial_status and initial_status.current_serving) else '—' }}</div>
+          <div class="metric-lbl">Currently Serving</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-val" id="val-est-wait">
+            {% if initial_status and initial_status.raw_status == 'WAITING' %}
+              {{ initial_status.estimated_wait_mins }}m
+            {% elif initial_status and initial_status.raw_status == 'SERVING' %}
+              Now
+            {% else %}
+              0m
+            {% endif %}
+          </div>
+          <div class="metric-lbl">Estimated Wait</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-val" style="font-size: 1.5rem; display: flex; align-items: center; justify-content: center; height: 42px;" id="val-counter-num">
+            {{ initial_status.counter_number if initial_status else 'Counter 1' }}
+          </div>
+          <div class="metric-lbl">Destination Counter</div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; pt: 1rem; border-top: 1px solid var(--slate-100); flex-wrap: wrap; gap: 1rem;">
+        <button onclick="tracker.fetchStatus()" class="btn btn-secondary btn-sm">
+          🔄 Refresh Now
+        </button>
+
+        <button id="btn-cancel-token" onclick="tracker.cancelToken()" class="btn btn-danger btn-sm">
+          Leave Queue / Cancel Token
+        </button>
+      </div>
+    </div>
+
+    <!-- Notification & Activity Log -->
+    <div class="notification-history">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--slate-800);">Activity & Notification Trail</h3>
+        <span style="font-size: 0.78rem; color: var(--slate-500);">Live Event Log</span>
+      </div>
+      <ul class="history-list" id="history-list">
+        {% if initial_status and initial_status.events %}
+          {% for ev in initial_status.events %}
+            <li class="history-item">
+              <span class="history-time">{{ ev.created_at[11:19] if ev.created_at else '' }}</span>
+              <span>{{ ev.message }}</span>
+            </li>
+          {% endfor %}
+        {% else %}
+          <li style="color: var(--slate-400); font-size: 0.85rem;">Connecting to live updates...</li>
+        {% endif %}
+      </ul>
+    </div>
+
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/status.js') }}"></script>
+<script>
+let tracker = null;
+
+function handleLookup(e) {
+  e.preventDefault();
+  const val = document.getElementById('lookup-input').value.trim();
+  if (val) {
+    window.location.href = `/status/${encodeURIComponent(val.toUpperCase())}`;
+  }
+}
+
+function toggleSound() {
+  const btn = document.getElementById('btn-toggle-sound');
+  if (!tracker) return;
+  tracker.soundEnabled = !tracker.soundEnabled;
+  if (tracker.soundEnabled) {
+    btn.innerText = '🔊 Sound On';
+    showToast("Audio Alerts", "Sound chime alerts enabled.", "info", 2000);
+  } else {
+    btn.innerText = '🔇 Sound Muted';
+    showToast("Audio Alerts", "Sound chime alerts muted.", "info", 2000);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const refCode = "{{ reference_code }}";
+  if (refCode && refCode !== 'None') {
+    tracker = new QueueTracker(refCode);
+    tracker.start();
+  }
+});
+</script>
+{% endblock %}

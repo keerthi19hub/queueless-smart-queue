@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Token {{ token.token_number }} — QueueLess{% endblock %}
+
+{% block content %}
+<div class="ticket-wrapper">
+  <div class="ticket-card">
+    <div class="ticket-header">
+      <span class="badge" style="background: rgba(255,255,255,0.25); color: #fff; margin-bottom: 0.5rem; font-size: 0.75rem;">Digital Queue Pass</span>
+      <h2>{{ token.service_name }}</h2>
+      <p>{{ token.counter_number }}</p>
+    </div>
+
+    <div class="ticket-body">
+      <div style="font-size: 0.85rem; font-weight: 700; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.05em;">Your Token Number</div>
+      <div class="token-big">{{ token.token_number }}</div>
+
+      <div style="margin-bottom: 1.25rem;">
+        <span class="badge badge-{{ token.status.lower() }}">{{ token.status }}</span>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 1.5rem;">
+        <span style="font-size: 0.85rem; color: var(--slate-500);">Reference Code:</span>
+        <span class="ref-pill" onclick="copyToClipboard('{{ token.reference_code }}', 'Reference Code copied!')" title="Click to copy">
+          {{ token.reference_code }} 📋
+        </span>
+      </div>
+
+      <div class="ticket-divider"></div>
+
+      <div class="ticket-grid">
+        <div class="ticket-grid-item">
+          <label>People Ahead</label>
+          <span style="color: var(--primary);">{{ token.people_ahead }}</span>
+        </div>
+        <div class="ticket-grid-item">
+          <label>Est. Wait Time</label>
+          <span style="color: var(--accent);">~{{ token.estimated_wait_mins }} mins</span>
+        </div>
+        <div class="ticket-grid-item">
+          <label>Visitor Name</label>
+          <span>{{ token.visitor_name }}</span>
+        </div>
+        <div class="ticket-grid-item">
+          <label>Currently Serving</label>
+          <span>{{ token.current_serving or 'None' }}</span>
+        </div>
+      </div>
+
+      <div class="ticket-actions">
+        <a href="{{ url_for('status_page', reference_code=token.reference_code) }}" class="btn btn-primary btn-lg">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          Track Live Queue Status
+        </a>
+
+        <div style="display: flex; gap: 0.75rem;">
+          <button onclick="copyToClipboard(window.location.origin + '/status/{{ token.reference_code }}', 'Live tracking link copied!')" class="btn btn-secondary" style="flex: 1;">
+            🔗 Copy Link
+          </button>
+          <button onclick="window.print()" class="btn btn-secondary" style="flex: 1;">
+            🖨️ Print Pass
+          </button>
+        </div>
+      </div>
+
+      <div style="margin-top: 1.5rem; font-size: 0.82rem; color: var(--slate-500); line-height: 1.4;">
+        💡 Bookmark this page or keep your reference code handy. You can check your position from any phone or computer.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
